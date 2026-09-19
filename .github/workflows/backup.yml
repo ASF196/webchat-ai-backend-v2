@@ -1,0 +1,36 @@
+name: Daily database backup
+
+# Runs scripts/backup.js once a day and commits the result to backups/latest.json.
+# Firestore's free tier doesn't expire, so this isn't racing a deadline —
+# it's a safety net against accidental deletion, giving you a same-day
+# restorable snapshot with every bot's EXACT original token intact.
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC daily
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci --omit=dev
+
+      - name: Run backup
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/backup.js
+
+      - name: Commit backup if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backups/latest.json
+          git diff --staged --quiet && echo "No changes to commit" || git commit -m "Automated backup $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push

@@ -1,0 +1,25 @@
+name: Keep backend awake
+
+# Render's free tier spins down the web service after 15 minutes with no
+# traffic. This pings /health every 10 minutes so it never gets the chance —
+# the next real visitor never has to wait through a 30-60s cold start.
+#
+# Honest caveat: GitHub disables scheduled workflows automatically if this
+# repo goes 60+ days with no commits, and cron timing isn't guaranteed to
+# the minute (GitHub can delay runs under load). For something more
+# reliable, a free account at https://uptimerobot.com pinging the same URL
+# every 5 minutes is a good belt-and-suspenders addition — it doesn't
+# depend on this repo staying "active."
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {} # lets you trigger it manually from the Actions tab too
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: |
+          curl -sf --connect-timeout 15 --max-time 90 "${{ secrets.BACKEND_URL }}/health" || echo "Ping failed — backend may be down or BACKEND_URL secret is unset."
