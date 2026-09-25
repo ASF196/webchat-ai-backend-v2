@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: webchat-ai-backend
+    runtime: node
+    plan: free
+    # npm ci (not npm install) installs EXACTLY what's in package-lock.json —
+    # no drift. This matters here specifically because of a real failure:
+    # playwright was pinned as "^1.47.0", so a later build could resolve a
+    # newer 1.x release than the one Render's browser-binary cache was
+    # populated for. Playwright's browser downloads are keyed to the exact
+    # package version, so a version bump without a matching fresh browser
+    # download throws "Executable doesn't exist at .../chromium_headless_shell-.../"
+    # — playwright.js is now pinned to an exact version for the same reason.
+    # (Deliberately NOT using --with-deps here: it runs a full apt-get pass
+    # for OS-level libraries, which can hang or time out on Render's free
+    # build containers. The bug above is fixed by the version pin alone;
+    # if Chromium still fails to LAUNCH after this — a different error than
+    # "Executable doesn't exist" — that's the signal to revisit OS deps.)
+    buildCommand: npm ci && npx playwright install chromium
+    startCommand: node server.js
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # Your Firebase service account key JSON, as ONE LINE (paste the raw
+      # JSON, or base64-encode it first — db/index.js accepts either). Get
+      # this from Firebase Console → Project Settings → Service Accounts →
+      # Generate new private key. This is what lets the backend read/write
+      # the SAME Firestore project your frontend's Firebase Hosting uses.
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      # Signs the login JWTs issued by /api/auth/login. Any long random
+      # string — generate one with `openssl rand -hex 32`. Rotating this
+      # instantly logs everyone out (all existing tokens stop verifying).
+      - key: JWT_SECRET
+        sync: false
+      # First-run bootstrap ONLY: on a Firestore project with zero owner
+      # accounts, db/index.js creates one owner login from these three
+      # values, then never touches them again. Change your password from
+      # the dashboard after first login — these are not read again once an
+      # owner exists.
+      - key: OWNER_EMAIL
+        sync: false
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: OWNER_NAME
+        value: "Owner"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "20"
+      # Custom chat-icon image upload feature — see backend/lib/cloudinary.js.
+      # Cloud name: Cloudinary Console dashboard, top left.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      # Settings -> Upload -> Upload presets -> Add upload preset.
+      - key: CLOUDINARY_UPLOAD_PRESET
+        sync: false
